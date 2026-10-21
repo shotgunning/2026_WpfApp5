@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -9,16 +10,14 @@ namespace _2026_WpfApp5
 {
     public partial class MainWindow : Window
     {
-        Color strokeColor = Colors.Black;
-        Color fillColor = Colors.Transparent;
-        int strokeThickness = 1;
-        string shapeType = "Line";
+        private Color strokeColor = Colors.Black;
+        private Color fillColor = Colors.Transparent;
+        private int strokeThickness = 1;
+        private string shapeType = "Line";
+        private string actionType = "Draw";
 
-        // 繪圖紀錄變數
-        Point startPoint;
-        Shape currentShape;
-        Polyline currentPolyline;
-        bool isDrawing = false;
+        private Point start = new Point(0, 0);
+        private Point end = new Point(0, 0);
 
         public MainWindow()
         {
@@ -33,6 +32,7 @@ namespace _2026_WpfApp5
             if (sender is RadioButton targetShapeButton && targetShapeButton.Tag != null)
             {
                 shapeType = targetShapeButton.Tag.ToString();
+                actionType = "Draw";
                 DisplayStatus();
             }
         }
@@ -63,127 +63,232 @@ namespace _2026_WpfApp5
 
         private void DisplayStatus()
         {
+            if (StatusLabel != null)
+            {
+                if (actionType == "Draw")
+                {
+                    StatusLabel.Content = $"圖形：{shapeType}  座標：({(int)start.X}, {(int)start.Y}) - ({(int)end.X}, {(int)end.Y})";
+                }
+                else
+                {
+                    StatusLabel.Content = $"工作模式：{actionType}";
+                }
+            }
+
             if (ColorLabel != null)
+            {
                 ColorLabel.Content = $"筆刷色彩:{strokeColor}     填充色彩:{fillColor}     筆刷粗細：{strokeThickness}";
+            }
 
             if (ShapeLabel != null)
+            {
                 ShapeLabel.Content = $"形狀：{shapeType}";
-        }
-
-        // ==================== 繪圖核心邏輯 ====================
-
-        // 滑鼠按壓：起點定位與新增圖形
-        private void Canvas_MouseDown(object sender, MouseButtonEventArgs e)
-        {
-            if (e.LeftButton == MouseButtonState.Pressed)
-            {
-                isDrawing = true;
-                startPoint = e.GetPosition(MyCanvas);
-
-                SolidColorBrush strokeBrush = new SolidColorBrush(strokeColor);
-                SolidColorBrush fillBrush = new SolidColorBrush(fillColor);
-
-                switch (shapeType)
-                {
-                    case "Line":
-                        currentShape = new Line
-                        {
-                            X1 = startPoint.X,
-                            Y1 = startPoint.Y,
-                            X2 = startPoint.X,
-                            Y2 = startPoint.Y,
-                            Stroke = strokeBrush,
-                            StrokeThickness = strokeThickness
-                        };
-                        break;
-
-                    case "Rectangle":
-                        currentShape = new Rectangle
-                        {
-                            Stroke = strokeBrush,
-                            Fill = fillBrush,
-                            StrokeThickness = strokeThickness
-                        };
-                        Canvas.SetLeft(currentShape, startPoint.X);
-                        Canvas.SetTop(currentShape, startPoint.Y);
-                        break;
-
-                    case "Ellipse":
-                        currentShape = new Ellipse
-                        {
-                            Stroke = strokeBrush,
-                            Fill = fillBrush,
-                            StrokeThickness = strokeThickness
-                        };
-                        Canvas.SetLeft(currentShape, startPoint.X);
-                        Canvas.SetTop(currentShape, startPoint.Y);
-                        break;
-
-                    case "Polyline":
-                        currentPolyline = new Polyline
-                        {
-                            Stroke = strokeBrush,
-                            StrokeThickness = strokeThickness
-                        };
-                        currentPolyline.Points.Add(startPoint);
-                        currentShape = currentPolyline;
-                        break;
-                }
-
-                if (currentShape != null)
-                {
-                    MyCanvas.Children.Add(currentShape);
-                }
             }
         }
 
-        // 滑鼠拖曳：即時更新圖形大小/座標
-        private void Canvas_MouseMove(object sender, MouseEventArgs e)
+        // ==================== 繪圖與游標互動邏輯 ====================
+
+        private void MyCanvas_MouseEnter(object sender, MouseEventArgs e)
         {
-            if (isDrawing && currentShape != null)
+            MyCanvas.Cursor = (actionType == "Eraser") ? Cursors.Hand : Cursors.Pen;
+        }
+
+        private void MyCanvas_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+        {
+            start = e.GetPosition(MyCanvas);
+            end = start;
+
+            if (actionType == "Draw")
             {
-                Point currentPoint = e.GetPosition(MyCanvas);
+                MyCanvas.Cursor = Cursors.Cross;
 
                 switch (shapeType)
                 {
                     case "Line":
-                        var line = currentShape as Line;
-                        if (line != null)
+                        Line line = new Line
                         {
-                            line.X2 = currentPoint.X;
-                            line.Y2 = currentPoint.Y;
-                        }
+                            X1 = start.X,
+                            Y1 = start.Y,
+                            X2 = end.X,
+                            Y2 = end.Y,
+                            Stroke = Brushes.Gray,
+                            StrokeThickness = 1
+                        };
+                        MyCanvas.Children.Add(line);
                         break;
 
                     case "Rectangle":
-                    case "Ellipse":
-                        double x = Math.Min(startPoint.X, currentPoint.X);
-                        double y = Math.Min(startPoint.Y, currentPoint.Y);
-                        double width = Math.Abs(currentPoint.X - startPoint.X);
-                        double height = Math.Abs(currentPoint.Y - startPoint.Y);
+                        Rectangle rect = new Rectangle
+                        {
+                            Stroke = Brushes.Gray,
+                            Fill = Brushes.LightGray
+                        };
+                        Canvas.SetLeft(rect, start.X);
+                        Canvas.SetTop(rect, start.Y);
+                        MyCanvas.Children.Add(rect);
+                        break;
 
-                        Canvas.SetLeft(currentShape, x);
-                        Canvas.SetTop(currentShape, y);
-                        currentShape.Width = width;
-                        currentShape.Height = height;
+                    case "Ellipse":
+                        Ellipse ellipse = new Ellipse
+                        {
+                            Stroke = Brushes.Gray,
+                            Fill = Brushes.LightGray
+                        };
+                        Canvas.SetLeft(ellipse, start.X);
+                        Canvas.SetTop(ellipse, start.Y);
+                        MyCanvas.Children.Add(ellipse);
                         break;
 
                     case "Polyline":
-                        if (currentPolyline != null)
+                        Polyline polyline = new Polyline
                         {
-                            currentPolyline.Points.Add(currentPoint);
-                        }
+                            Stroke = Brushes.Gray,
+                            Fill = Brushes.LightGray
+                        };
+                        polyline.Points.Add(start);
+                        MyCanvas.Children.Add(polyline);
                         break;
                 }
             }
         }
 
-        // 滑鼠放開：結束繪圖
-        private void Canvas_MouseUp(object sender, MouseButtonEventArgs e)
+        private void MyCanvas_MouseMove(object sender, MouseEventArgs e)
         {
-            isDrawing = false;
-            currentShape = null;
-            currentPolyline = null;
+            end = e.GetPosition(MyCanvas);
+            DisplayStatus();
+
+            switch (actionType)
+            {
+                case "Draw":
+                    if (e.LeftButton == MouseButtonState.Pressed)
+                    {
+                        Point origin = new Point(Math.Min(start.X, end.X), Math.Min(start.Y, end.Y));
+                        double width = Math.Abs(end.X - start.X);
+                        double height = Math.Abs(end.Y - start.Y);
+
+                        switch (shapeType)
+                        {
+                            case "Line":
+                                var line = MyCanvas.Children.OfType<Line>().LastOrDefault();
+                                if (line != null)
+                                {
+                                    line.X2 = end.X;
+                                    line.Y2 = end.Y;
+                                }
+                                break;
+
+                            case "Rectangle":
+                                var rect = MyCanvas.Children.OfType<Rectangle>().LastOrDefault();
+                                if (rect != null)
+                                {
+                                    rect.Width = width;
+                                    rect.Height = height;
+                                    Canvas.SetLeft(rect, origin.X);
+                                    Canvas.SetTop(rect, origin.Y);
+                                }
+                                break;
+
+                            case "Ellipse":
+                                var ellipse = MyCanvas.Children.OfType<Ellipse>().LastOrDefault();
+                                if (ellipse != null)
+                                {
+                                    ellipse.Width = width;
+                                    ellipse.Height = height;
+                                    Canvas.SetLeft(ellipse, origin.X);
+                                    Canvas.SetTop(ellipse, origin.Y);
+                                }
+                                break;
+
+                            case "Polyline":
+                                var polyline = MyCanvas.Children.OfType<Polyline>().LastOrDefault();
+                                if (polyline != null)
+                                {
+                                    polyline.Points.Add(end);
+                                }
+                                break;
+                        }
+                    }
+                    break;
+
+                case "Eraser":
+                    MyCanvas.Cursor = Cursors.Hand;
+                    // 當處於橡皮擦模式，且游標移過 Shape 圖形時移除該圖形
+                    if (e.OriginalSource is Shape targetShape)
+                    {
+                        MyCanvas.Children.Remove(targetShape);
+                    }
+                    break;
+            }
+        }
+
+        private void MyCanvas_MouseLeftButtonUp(object sender, MouseButtonEventArgs e)
+        {
+            if (actionType != "Draw") return;
+
+            MyCanvas.Cursor = Cursors.Pen;
+            Brush strokeBrush = new SolidColorBrush(strokeColor);
+            Brush fillBrush = new SolidColorBrush(fillColor);
+
+            // 繪圖結束時，套用最終設定的筆刷顏色與粗細
+            switch (shapeType)
+            {
+                case "Line":
+                    var line = MyCanvas.Children.OfType<Line>().LastOrDefault();
+                    if (line != null)
+                    {
+                        line.Stroke = strokeBrush;
+                        line.StrokeThickness = strokeThickness;
+                    }
+                    break;
+
+                case "Rectangle":
+                    var rect = MyCanvas.Children.OfType<Rectangle>().LastOrDefault();
+                    if (rect != null)
+                    {
+                        rect.Stroke = strokeBrush;
+                        rect.Fill = fillBrush;
+                        rect.StrokeThickness = strokeThickness;
+                    }
+                    break;
+
+                case "Ellipse":
+                    var ellipse = MyCanvas.Children.OfType<Ellipse>().LastOrDefault();
+                    if (ellipse != null)
+                    {
+                        ellipse.Stroke = strokeBrush;
+                        ellipse.Fill = fillBrush;
+                        ellipse.StrokeThickness = strokeThickness;
+                    }
+                    break;
+
+                case "Polyline":
+                    var polyline = MyCanvas.Children.OfType<Polyline>().LastOrDefault();
+                    if (polyline != null)
+                    {
+                        polyline.Stroke = strokeBrush;
+                        polyline.Fill = fillBrush;
+                        polyline.StrokeThickness = strokeThickness;
+                    }
+                    break;
+            }
+        }
+
+        // ==================== 按鈕事件處理 ====================
+
+        private void EraserButton_Click(object sender, RoutedEventArgs e)
+        {
+            actionType = "Eraser";
+            MyCanvas.Cursor = Cursors.Hand;
+            DisplayStatus();
+        }
+
+        private void ClearButton_Click(object sender, RoutedEventArgs e)
+        {
+            actionType = "Clear";
+            MyCanvas.Children.Clear();
+            DisplayStatus();
+            actionType = "Draw";
+            MyCanvas.Cursor = Cursors.Pen;
         }
     }
 }
